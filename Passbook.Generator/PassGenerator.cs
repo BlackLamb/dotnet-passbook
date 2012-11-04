@@ -23,7 +23,7 @@ namespace Passbook.Generator
         {
             if (request == null)
             {
-                throw new ArgumentNullException("request");
+                throw new ArgumentNullException("request", "You must pass an instance of PassGeneratorRequest");
             }
 
             string pathToPackage = CreatePackage(request);
@@ -35,42 +35,51 @@ namespace Passbook.Generator
 
         private string ZipPackage(string pathToPackage)
         {
-            string output = pathToPackage + "\\..\\pass.pkpass";
-            ZipFile.CreateFromDirectory(pathToPackage, output);
+            string output = pathToPackage + "\\pass.pkpass";
+            string fullPackagePath = Path.Combine(pathToPackage, "contents");
+            ZipFile.CreateFromDirectory(fullPackagePath, output);
             return output;
         }
 
         private string CreatePackage(PassGeneratorRequest request)
         {
-            string tempPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName(), "contents");
+            string rootPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+            string tempPath = Path.Combine(rootPath, "contents");
             Directory.CreateDirectory(tempPath);
 
             CopyImageFiles(request, tempPath);
             CreatePassFile(request, tempPath);
             GenerateManifestFile(request, tempPath);
 
-            return tempPath;
+            return rootPath;
         }
 
         private void CopyImageFiles(PassGeneratorRequest request, string tempPath)
         {
-            string targetIconFileAndPath = Path.Combine(tempPath, Path.GetFileName(request.IconFile));
-            string targetIconRetinaFileAndPath = Path.Combine(tempPath, Path.GetFileName(request.IconRetinaFile));
+            // get and copy all files in given directory
+            if (request.ImagesPath != null)
+            {
+                foreach (var file in Directory.GetFiles(request.ImagesPath))
+                {
+                    string fileName = file.Split('\\').Last(),
+                           temporaryPathAndFile = Path.Combine(tempPath, fileName);
 
-            File.Copy(request.IconFile, targetIconFileAndPath);
-            File.Copy(request.IconRetinaFile, targetIconRetinaFileAndPath);
+                    // copy from origin to temp destination
+                    File.Copy(file, temporaryPathAndFile);
+                }
+            }
 
-            string targetLogoFileAndPath = Path.Combine(tempPath, Path.GetFileName(request.LogoFile));
-            string targetLogoRetinaFileAndPath = Path.Combine(tempPath, Path.GetFileName(request.LogoRetinaFile));
+            // override path
+            if (request.ImagesList != null && request.ImagesList.Count > 0)
+            {
+                foreach (var image in request.ImagesList)
+                {
+                    string temporaryPathAndFile = Path.Combine(tempPath, StringEnum.GetStringValue(image.Key));
 
-            File.Copy(request.LogoFile, targetLogoFileAndPath);
-            File.Copy(request.LogoRetinaFile, targetLogoRetinaFileAndPath);
-
-            string targetBackgroundFileAndPath = Path.Combine(tempPath, Path.GetFileName(request.BackgroundFile));
-            string targetBackgroundRetinaFileAndPath = Path.Combine(tempPath, Path.GetFileName(request.BackgroundRetinaFile));
-
-            File.Copy(request.BackgroundFile, targetBackgroundFileAndPath);
-            File.Copy(request.BackgroundRetinaFile, targetBackgroundRetinaFileAndPath);
+                    // copy from origin to temp destination
+                    File.Copy(image.Value, temporaryPathAndFile, true);
+                }
+            }
         }
 
         private void CreatePassFile(PassGeneratorRequest request, string tempPath)
@@ -117,6 +126,12 @@ namespace Passbook.Generator
             byte[] dataToSign = File.ReadAllBytes(manifestFileAndPath);
 
             X509Certificate2 card = GetCertificate(request);
+
+            if (card == null)
+            {
+                throw new FileNotFoundException("Certificate could not be found. Please ensure the thumbprint and cert location values are correct.");
+            }
+
             Org.BouncyCastle.X509.X509Certificate cert = DotNetUtilities.FromX509Certificate(card);
             Org.BouncyCastle.Crypto.AsymmetricKeyParameter privateKey = DotNetUtilities.GetKeyPair(card.PrivateKey).Private;
 

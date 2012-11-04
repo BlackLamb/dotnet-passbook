@@ -1,10 +1,6 @@
-﻿using Newtonsoft.Json;
+﻿using System;
+using Newtonsoft.Json;
 using Passbook.Generator.Exceptions;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Passbook.Generator.Fields
 {
@@ -56,7 +52,7 @@ namespace Passbook.Generator.Fields
             if (TextAlignment != FieldTextAlignment.Unspecified)
             {
                 writer.WritePropertyName("textAlignment");
-                writer.WriteValue(TextAlignment);
+                writer.WriteValue(TextAlignment.ToString());
             }
 
             WriteKeys(writer);

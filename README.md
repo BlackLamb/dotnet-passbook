@@ -4,6 +4,10 @@ A .Net Library for generating Passbook packages for iOS 6
 ##Why
 The goal of this project is to build a library that can generate, sign and zip Passbook files for use with iOS 6's Passbook. 
 
+## Requirements
+
+The solution requires .Net 4.5 and Visual Studio 2012.
+
 ##Certificates
 
 Before you run the PassGenerator, you need to ensure you have all the necessary certificates installed. There are two required. 
@@ -27,7 +31,6 @@ Since each pass has a set of mandatory data, fill that in first.
     PassGeneratorRequest request = new PassGeneratorRequest();
     request.Identifier = "pass.tomsamcguinness.events";   
     request.TeamIdentifier = "RW121242";
-    request.FormatVersion = 1;
     request.SerialNumber = "121212";
     request.Description = "My first pass";
     request.OrganizationName = "Tomas McGuinness";
@@ -42,14 +45,12 @@ Choose the location of your Passbook certificate. This is used to sign the manif
 
 Next, define the images you with to use. You must always include both standard and retina sized images.
 
-    request.BackgroundFile = @"C:/Icons/Starbucks/background.png";
-    request.BackgroundRetinaFile = @"C:/Icons/Starbucks/background@2x.png";
+    // images folder
+    request.ImagesPath = Server.MapPath(@"~/Icons/Starbucks/");
 
-    request.IconFile =@"C:/Icons/icon.png";
-    request.IconRetinaFile = @"C:/Icons/icon@2x.png";
-
-    request.LogoFile = @"C:/Icons/logo.png";
-    request.LogoRetinaFile = @"C:/Icons/logo@2x.png";
+    // override icon and icon retina
+    request.ImagesList.Add(PassbookImage.Icon, Server.MapPath("~/Icons/icon.png"));
+    request.ImagesList.Add(PassbookImage.IconRetina, Server.MapPath("~/Icons/icon@2x.png"));
 
 You can now provide more pass specific information. The Style must be set and then all information is then added to fields to the required sections. For a baording pass, the fields are add to three sections;  primary, secondary and auxiliary.
 
@@ -77,6 +78,10 @@ Use GetPackage to get the zip file. This will return a byte[] representing all t
 
 	generatedPass.GetPackage()
 
+To clean up any temporary files, you can just delete the directory when done.
+
+    System.IO.Directory.Delete(generatedPass.PackageDirectory, true);
+ 
 ##Updating passes
 
 To be able to update your pass, you must provide it with a callback. When generating your request, you must provide it with an AuthenticationToken and a WebServiceUrl.
@@ -114,6 +119,9 @@ These passes are functional and can be saved Passbook.
 
 ##Contribute
 All pull requests are welcomed! If you come across an issue you cannot fix, please raise an issue or drop me an email at tomas@tomasmcguinness.com or follow me on twitter @tomasmcguinness
+
+##PassVerse	
+PassVerse is a service that I am building that will offer a simple way to design and generate Passbook passes. It will allow you to track usage and offer an API to push updates to your passes. This will provide you with an alternative to implementing this technology yourself. You can register your interest at [www.passverse.com](http://www.passverse.com)
 
 ##License
 
