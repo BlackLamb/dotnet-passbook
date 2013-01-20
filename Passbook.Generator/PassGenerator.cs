@@ -19,112 +19,280 @@ namespace Passbook.Generator
 {
     public class PassGenerator
     {
-        public Pass Generate(PassGeneratorRequest request)
+        private byte[] passFile = null;
+        private byte[] signatureFile = null;
+        private byte[] manifestFile = null;
+        private byte[] pkPassFile = null;
+
+        private const string APPLE_CERTIFICATE_THUMBPRINT = "‎0950b6cd3d2f37ea246a1aaa20dfaadbd6fe1f75";
+
+        public byte[] Generate(PassGeneratorRequest request)
         {
             if (request == null)
             {
                 throw new ArgumentNullException("request", "You must pass an instance of PassGeneratorRequest");
             }
 
-            string pathToPackage = CreatePackage(request);
+            CreatePackage(request);
+            ZipPackage(request);
 
-            string pathToZip = ZipPackage(pathToPackage);
-
-            return new Pass(pathToZip);
+            return pkPassFile;
         }
 
-        private string ZipPackage(string pathToPackage)
+        private void ZipPackage(PassGeneratorRequest request)
         {
-            string output = pathToPackage + "\\pass.pkpass";
-            string fullPackagePath = Path.Combine(pathToPackage, "contents");
-            ZipFile.CreateFromDirectory(fullPackagePath, output);
-            return output;
-        }
-
-        private string CreatePackage(PassGeneratorRequest request)
-        {
-            string rootPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-            string tempPath = Path.Combine(rootPath, "contents");
-            Directory.CreateDirectory(tempPath);
-
-            CopyImageFiles(request, tempPath);
-            CreatePassFile(request, tempPath);
-            GenerateManifestFile(request, tempPath);
-
-            return rootPath;
-        }
-
-        private void CopyImageFiles(PassGeneratorRequest request, string tempPath)
-        {
-            // get and copy all files in given directory
-            if (request.ImagesPath != null)
+            using (MemoryStream zipToOpen = new MemoryStream())
             {
-                foreach (var file in Directory.GetFiles(request.ImagesPath))
+                using (ZipArchive archive = new ZipArchive(zipToOpen, ZipArchiveMode.Update, true))
                 {
-                    string fileName = file.Split('\\').Last(),
-                           temporaryPathAndFile = Path.Combine(tempPath, fileName);
+                    ZipArchiveEntry imageEntry = null;
 
-                    // copy from origin to temp destination
-                    File.Copy(file, temporaryPathAndFile);
-                }
-            }
-
-            // override path
-            if (request.ImagesList != null && request.ImagesList.Count > 0)
-            {
-                foreach (var image in request.ImagesList)
-                {
-                    string temporaryPathAndFile = Path.Combine(tempPath, StringEnum.GetStringValue(image.Key));
-
-                    // copy from origin to temp destination
-                    File.Copy(image.Value, temporaryPathAndFile, true);
-                }
-            }
-        }
-
-        private void CreatePassFile(PassGeneratorRequest request, string tempPath)
-        {
-            string passFileAndPath = Path.Combine(tempPath, "pass.json");
-
-            using (StreamWriter sr = File.CreateText(passFileAndPath))
-            {
-                using (JsonWriter writer = new JsonTextWriter(sr))
-                {
-                    request.Write(writer);
-                }
-            }
-        }
-
-        private void GenerateManifestFile(PassGeneratorRequest request, string tempPath)
-        {
-            string manifestFileAndPath = Path.Combine(tempPath, "manifest.json");
-            string[] filesToInclude = Directory.GetFiles(tempPath);
-
-            using (StreamWriter sw = new StreamWriter(File.Open(manifestFileAndPath, FileMode.Create)))
-            {
-                using (JsonWriter jsonWriter = new JsonTextWriter(sw))
-                {
-                    jsonWriter.Formatting = Formatting.Indented;
-                    jsonWriter.WriteStartObject();
-
-                    foreach (var fileNameWithPath in filesToInclude)
+                    if (request.Images.ContainsKey(PassbookImage.Icon))
                     {
-                        string fileName = Path.GetFileName(fileNameWithPath);
-                        string hash = GetHashForFile(fileNameWithPath);
+                        imageEntry = archive.CreateEntry(@"icon.png");
+                        using (BinaryWriter writer = new BinaryWriter(imageEntry.Open()))
+                        {
+                            writer.Write(request.Images[PassbookImage.Icon]);
+                            writer.Flush();
+                        }
+                    }
 
-                        jsonWriter.WritePropertyName(fileName);
-                        jsonWriter.WriteValue(hash.ToLower());
+                    if (request.Images.ContainsKey(PassbookImage.IconRetina))
+                    {
+                        imageEntry = archive.CreateEntry(@"icon@2x.png");
+                        using (BinaryWriter writer = new BinaryWriter(imageEntry.Open()))
+                        {
+                            writer.Write(request.Images[PassbookImage.IconRetina]);
+                            writer.Flush();
+                        }
+                    }
+
+                    if (request.Images.ContainsKey(PassbookImage.Logo))
+                    {
+                        imageEntry = archive.CreateEntry(@"logo.png");
+                        using (BinaryWriter writer = new BinaryWriter(imageEntry.Open()))
+                        {
+                            writer.Write(request.Images[PassbookImage.Logo]);
+                            writer.Flush();
+                        }
+                    }
+
+                    if (request.Images.ContainsKey(PassbookImage.LogoRetina))
+                    {
+                        imageEntry = archive.CreateEntry(@"logo@2x.png");
+                        using (BinaryWriter writer = new BinaryWriter(imageEntry.Open()))
+                        {
+                            writer.Write(request.Images[PassbookImage.LogoRetina]);
+                            writer.Flush();
+                        }
+                    }
+
+                    if (request.Images.ContainsKey(PassbookImage.Background))
+                    {
+                        imageEntry = archive.CreateEntry(@"background.png");
+                        using (BinaryWriter writer = new BinaryWriter(imageEntry.Open()))
+                        {
+                            writer.Write(request.Images[PassbookImage.Background]);
+                            writer.Flush();
+                        }
+                    }
+
+                    if (request.Images.ContainsKey(PassbookImage.BackgroundRetina))
+                    {
+                        imageEntry = archive.CreateEntry(@"background@2x.png");
+                        using (BinaryWriter writer = new BinaryWriter(imageEntry.Open()))
+                        {
+                            writer.Write(request.Images[PassbookImage.BackgroundRetina]);
+                            writer.Flush();
+                        }
+                    }
+
+                    if (request.Images.ContainsKey(PassbookImage.Strip))
+                    {
+                        imageEntry = archive.CreateEntry(@"strip.png");
+                        using (BinaryWriter writer = new BinaryWriter(imageEntry.Open()))
+                        {
+                            writer.Write(request.Images[PassbookImage.Strip]);
+                            writer.Flush();
+                        }
+                    }
+
+                    if (request.Images.ContainsKey(PassbookImage.StripRetina))
+                    {
+                        imageEntry = archive.CreateEntry(@"strip@2x.png");
+                        using (BinaryWriter writer = new BinaryWriter(imageEntry.Open()))
+                        {
+                            writer.Write(request.Images[PassbookImage.StripRetina]);
+                            writer.Flush();
+                        }
+                    }
+
+                    if (request.Images.ContainsKey(PassbookImage.Thumbnail))
+                    {
+                        imageEntry = archive.CreateEntry(@"thumbnail.png");
+                        using (BinaryWriter writer = new BinaryWriter(imageEntry.Open()))
+                        {
+                            writer.Write(request.Images[PassbookImage.Thumbnail]);
+                            writer.Flush();
+                        }
+                    }
+
+                    if (request.Images.ContainsKey(PassbookImage.ThumbnailRetina))
+                    {
+                        imageEntry = archive.CreateEntry(@"thumbnail@2x.png");
+                        using (BinaryWriter writer = new BinaryWriter(imageEntry.Open()))
+                        {
+                            writer.Write(request.Images[PassbookImage.ThumbnailRetina]);
+                            writer.Flush();
+                        }
+                    }
+
+                    ZipArchiveEntry PassJSONEntry = archive.CreateEntry(@"pass.json");
+                    using (BinaryWriter writer = new BinaryWriter(PassJSONEntry.Open()))
+                    {
+                        writer.Write(passFile);
+                        writer.Flush();
+                    }
+
+                    ZipArchiveEntry ManifestJSONEntry = archive.CreateEntry(@"manifest.json");
+                    using (BinaryWriter writer = new BinaryWriter(ManifestJSONEntry.Open()))
+                    {
+                        writer.Write(manifestFile);
+                        writer.Flush();
+                    }
+
+                    ZipArchiveEntry SignatureEntry = archive.CreateEntry(@"signature");
+                    using (BinaryWriter writer = new BinaryWriter(SignatureEntry.Open()))
+                    {
+                        writer.Write(signatureFile);
+                        writer.Flush();
                     }
                 }
-            }
 
-            SignManigestFile(request, manifestFileAndPath);
+                pkPassFile = zipToOpen.ToArray();
+                zipToOpen.Flush();
+            }
         }
 
-        private void SignManigestFile(PassGeneratorRequest request, string manifestFileAndPath)
+        private void CreatePackage(PassGeneratorRequest request)
         {
-            byte[] dataToSign = File.ReadAllBytes(manifestFileAndPath);
+            CreatePassFile(request);
+            GenerateManifestFile(request);
+        }
 
+        private void CreatePassFile(PassGeneratorRequest request)
+        {
+            using (MemoryStream ms = new MemoryStream())
+            {
+                using (StreamWriter sr = new StreamWriter(ms))
+                {
+                    using (JsonWriter writer = new JsonTextWriter(sr))
+                    {
+                        request.Write(writer);
+                    }
+
+                    passFile = ms.ToArray();
+                }
+            }
+        }
+
+        private void GenerateManifestFile(PassGeneratorRequest request)
+        {
+            using (MemoryStream ms = new MemoryStream())
+            {
+                using (StreamWriter sw = new StreamWriter(ms))
+                {
+                    using (JsonWriter jsonWriter = new JsonTextWriter(sw))
+                    {
+                        jsonWriter.Formatting = Formatting.Indented;
+                        jsonWriter.WriteStartObject();
+
+                        string hash = null;
+
+                        if (request.Images.ContainsKey(PassbookImage.Icon))
+                        {
+                            hash = GetHashForBytes(request.Images[PassbookImage.Icon]);
+                            jsonWriter.WritePropertyName(@"icon.png");
+                            jsonWriter.WriteValue(hash.ToLower());
+                        }
+
+                        if (request.Images.ContainsKey(PassbookImage.IconRetina))
+                        {
+                            hash = GetHashForBytes(request.Images[PassbookImage.IconRetina]);
+                            jsonWriter.WritePropertyName(@"icon@2x.png");
+                            jsonWriter.WriteValue(hash.ToLower());
+                        }
+
+                        if (request.Images.ContainsKey(PassbookImage.Logo))
+                        {
+                            hash = GetHashForBytes(request.Images[PassbookImage.Logo]);
+                            jsonWriter.WritePropertyName(@"logo.png");
+                            jsonWriter.WriteValue(hash.ToLower());
+                        }
+
+                        if (request.Images.ContainsKey(PassbookImage.LogoRetina))
+                        {
+                            hash = GetHashForBytes(request.Images[PassbookImage.LogoRetina]);
+                            jsonWriter.WritePropertyName(@"logo@2x.png");
+                            jsonWriter.WriteValue(hash.ToLower());
+                        }
+
+                        if (request.Images.ContainsKey(PassbookImage.Background))
+                        {
+                            hash = GetHashForBytes(request.Images[PassbookImage.Background]);
+                            jsonWriter.WritePropertyName(@"background.png");
+                            jsonWriter.WriteValue(hash.ToLower());
+                        }
+
+                        if (request.Images.ContainsKey(PassbookImage.BackgroundRetina))
+                        {
+                            hash = GetHashForBytes(request.Images[PassbookImage.BackgroundRetina]);
+                            jsonWriter.WritePropertyName(@"background@2x.png");
+                            jsonWriter.WriteValue(hash.ToLower());
+                        }
+
+                        if (request.Images.ContainsKey(PassbookImage.Strip))
+                        {
+                            hash = GetHashForBytes(request.Images[PassbookImage.Strip]);
+                            jsonWriter.WritePropertyName(@"strip.png");
+                            jsonWriter.WriteValue(hash.ToLower());
+                        }
+
+                        if (request.Images.ContainsKey(PassbookImage.StripRetina))
+                        {
+                            hash = GetHashForBytes(request.Images[PassbookImage.StripRetina]);
+                            jsonWriter.WritePropertyName(@"strip@2x.png");
+                            jsonWriter.WriteValue(hash.ToLower());
+                        }
+
+                        if (request.Images.ContainsKey(PassbookImage.Thumbnail))
+                        {
+                            hash = GetHashForBytes(request.Images[PassbookImage.Thumbnail]);
+                            jsonWriter.WritePropertyName(@"thumbnail.png");
+                            jsonWriter.WriteValue(hash.ToLower());
+                        }
+
+                        if (request.Images.ContainsKey(PassbookImage.ThumbnailRetina))
+                        {
+                            hash = GetHashForBytes(request.Images[PassbookImage.ThumbnailRetina]);
+                            jsonWriter.WritePropertyName(@"thumbnail@2x.png");
+                            jsonWriter.WriteValue(hash.ToLower());
+                        }
+
+                        hash = GetHashForBytes(passFile);
+                        jsonWriter.WritePropertyName(@"pass.json");
+                        jsonWriter.WriteValue(hash.ToLower());
+                    }
+
+                    manifestFile = ms.ToArray();
+                }
+
+                SignManigestFile(request);
+            }
+        }
+
+        private void SignManigestFile(PassGeneratorRequest request)
+        {
             X509Certificate2 card = GetCertificate(request);
 
             if (card == null)
@@ -135,7 +303,7 @@ namespace Passbook.Generator
             Org.BouncyCastle.X509.X509Certificate cert = DotNetUtilities.FromX509Certificate(card);
             Org.BouncyCastle.Crypto.AsymmetricKeyParameter privateKey = DotNetUtilities.GetKeyPair(card.PrivateKey).Private;
 
-            X509Certificate2 appleCA = GetAppleCertificate();
+            X509Certificate2 appleCA = GetAppleCertificate(request);
             Org.BouncyCastle.X509.X509Certificate appleCert = DotNetUtilities.FromX509Certificate(appleCA);
 
             ArrayList intermediateCerts = new ArrayList();
@@ -151,26 +319,37 @@ namespace Passbook.Generator
             generator.AddSigner(privateKey, cert, CmsSignedDataGenerator.DigestSha1);
             generator.AddCertificates(st1);
 
-            CmsProcessable content = new CmsProcessableByteArray(dataToSign);
+            CmsProcessable content = new CmsProcessableByteArray(manifestFile);
             CmsSignedData signedData = generator.Generate(content, false);
 
-            string outputDirectory = Path.GetDirectoryName(manifestFileAndPath);
-            string signatureFileAndPath = Path.Combine(outputDirectory, "signature");
-
-            File.WriteAllBytes(signatureFileAndPath, signedData.GetEncoded());
+            signatureFile = signedData.GetEncoded();
         }
 
-        private X509Certificate2 GetAppleCertificate()
+        private X509Certificate2 GetAppleCertificate(PassGeneratorRequest request)
         {
-            return GetSpecifiedCertificate("‎0950b6cd3d2f37ea246a1aaa20dfaadbd6fe1f75", StoreName.CertificateAuthority, StoreLocation.LocalMachine);
+            if (request.AppleWWDRCACertificate == null)
+            {
+                return GetSpecifiedCertificateFromCertStore(APPLE_CERTIFICATE_THUMBPRINT, StoreName.CertificateAuthority, StoreLocation.LocalMachine);
+            }
+            else
+            {
+                return GetCertificateFromBytes(request.AppleWWDRCACertificate, null);
+            }
         }
 
         public static X509Certificate2 GetCertificate(PassGeneratorRequest request)
         {
-            return GetSpecifiedCertificate(request.CertThumbprint, StoreName.My, request.CertLocation);
+            if (request.Certificate == null)
+            {
+                return GetSpecifiedCertificateFromCertStore(request.CertThumbprint, StoreName.My, request.CertLocation);
+            }
+            else
+            {
+                return GetCertificateFromBytes(request.Certificate, request.CertificatePassword);
+            }
         }
 
-        private static X509Certificate2 GetSpecifiedCertificate(string thumbPrint, StoreName storeName, StoreLocation storeLocation)
+        private static X509Certificate2 GetSpecifiedCertificateFromCertStore(string thumbPrint, StoreName storeName, StoreLocation storeLocation)
         {
             X509Store store = new X509Store(storeName, storeLocation);
             store.Open(OpenFlags.ReadOnly);
@@ -195,14 +374,28 @@ namespace Passbook.Generator
             return null;
         }
 
-        private string GetHashForFile(string fileAndPath)
+        private static X509Certificate2 GetCertificateFromBytes(byte[] bytes, string password)
+        {
+            X509Certificate2 certificate = null;
+
+            if (password == null)
+            {
+                certificate = new X509Certificate2(bytes);
+            }
+            else
+            {
+                certificate = new X509Certificate2(bytes, password, X509KeyStorageFlags.Exportable);
+            }
+
+            return certificate;
+        }
+
+        private string GetHashForBytes(byte[] bytes)
         {
             SHA1CryptoServiceProvider oSHA1Hasher = new SHA1CryptoServiceProvider();
             byte[] hashBytes;
-            using (FileStream fs = File.Open(fileAndPath, FileMode.Open))
-            {
-                hashBytes = oSHA1Hasher.ComputeHash(fs);
-            }
+
+            hashBytes = oSHA1Hasher.ComputeHash(bytes);
 
             string hash = System.BitConverter.ToString(hashBytes);
             hash = hash.Replace("-", "");

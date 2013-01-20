@@ -4,6 +4,7 @@ using Newtonsoft.Json;
 using Passbook.Generator.Fields;
 using System.Collections.Generic;
 using System.Security.Cryptography.X509Certificates;
+using System.Drawing;
 
 namespace Passbook.Generator
 {
@@ -16,8 +17,8 @@ namespace Passbook.Generator
             this.SecondaryFields = new List<Field>();
             this.AuxiliaryFields = new List<Field>();
             this.BackFields = new List<Field>();
-
-            this.ImagesList = new Dictionary<PassbookImage, string>();
+            this.Images = new Dictionary<PassbookImage, byte[]>();
+            this.Locations = new List<Location>();
         }
 
         #region Standard Keys
@@ -52,14 +53,9 @@ namespace Passbook.Generator
         #region Images Files
 
         /// <summary>
-        /// Passbook images folder
-        /// Images names and sizes can be found at http://developer.apple.com/library/ios/#documentation/userexperience/Conceptual/PassKit_PG/Chapters/Creating.html#//apple_ref/doc/uid/TP40012195-CH4-SW1
+        /// When using in memory, the binary of each image is put here.
         /// </summary>
-        public string ImagesPath { get; set; }
-        /// <summary>
-        /// Images override from <paramref name="ImagesPath"/> where you specify the file to override and give it's path and filename
-        /// </summary>
-        public Dictionary<PassbookImage, string> ImagesList { get; set; }
+        public Dictionary<PassbookImage, byte[]> Images { get; set; }
 
         #endregion
 
@@ -85,8 +81,7 @@ namespace Passbook.Generator
         /// <summary>
         /// Optional. If true, the strip image is displayed without a shine effect. The default value is false.
         /// </summary>
-        public bool SuppressStripeShine { get; set; }
-
+        public bool SuppressStripShine { get; set; }
         /// <summary>
         /// Optional. Fields to be displayed prominently on the front of the pass.
         /// </summary>
@@ -124,7 +119,28 @@ namespace Passbook.Generator
 
         #endregion
 
+        #region Location Keys
+
+        public List<Location> Locations { get; private set; }
+
+        #endregion
+
         #region Certificate
+
+        /// <summary>
+        /// A byte array containing the X509 certificate
+        /// </summary>
+        public byte[] Certificate { get; set; }
+
+        /// <summary>
+        /// A byte array containing the Apple WWDRCA X509 certificate
+        /// </summary>
+        public byte[] AppleWWDRCACertificate { get; set; }
+
+        /// <summary>
+        /// The private key password for the certificate.
+        /// </summary>
+        public string CertificatePassword { get; set; }
 
         /// <summary>
         /// Certificate Thumbprint value
@@ -182,6 +198,22 @@ namespace Passbook.Generator
             Barcode.Encoding = encoding;
             Barcode.AlternateText = altText;
         }
+        public void AddBarCode(string message, BarcodeType type, string encoding)
+        {
+          Barcode = new BarCode();
+          Barcode.Type = type;
+          Barcode.Message = message;
+          Barcode.Encoding = encoding;
+          Barcode.AlternateText = null;
+        }
+        public void AddLocation(double latitude, double longitude)
+        {
+            AddLocation(latitude, longitude, null);
+        }
+        public void AddLocation(double latitude, double longitude, string relevantText)
+        {
+            this.Locations.Add(new Location() { Latitude = latitude, Longitude = longitude, RelevantText = relevantText });
+        }
 
         public virtual void PopulateFields()
         {
@@ -195,6 +227,7 @@ namespace Passbook.Generator
             writer.WriteStartObject();
 
             WriteStandardKeys(writer, this);
+            WriteLocationKeys(writer, this);
             WriteAppearanceKeys(writer, this);
 
             OpenStyleSpecificKey(writer, this);
@@ -217,6 +250,19 @@ namespace Passbook.Generator
             WriteUrls(writer, this);
 
             writer.WriteEndObject();
+        }
+
+        private void WriteLocationKeys(JsonWriter writer, PassGeneratorRequest passGeneratorRequest)
+        {
+            writer.WritePropertyName("locations");
+            writer.WriteStartArray();
+
+            foreach (var location in Locations)
+            {
+              location.Write(writer);
+            }
+
+            writer.WriteEndArray();
         }
 
         private void WriteUrls(JsonWriter writer, PassGeneratorRequest request)
@@ -249,6 +295,7 @@ namespace Passbook.Generator
                     writer.WritePropertyName("altText");
                     writer.WriteValue(request.Barcode.AlternateText);
                 }
+
                 writer.WriteEndObject();
             }
         }
@@ -278,11 +325,6 @@ namespace Passbook.Generator
                 writer.WritePropertyName("logoText");
                 writer.WriteValue(request.LogoText);
             }
-            if (request.LabelColor != null)
-            {
-                writer.WritePropertyName("labelColor");
-                writer.WriteValue(request.LabelColor);
-            }
         }
 
         private void WriteAppearanceKeys(JsonWriter writer, PassGeneratorRequest request)
@@ -290,12 +332,25 @@ namespace Passbook.Generator
             if (request.ForegroundColor != null)
             {
                 writer.WritePropertyName("foregroundColor");
-                writer.WriteValue(request.ForegroundColor);
+                writer.WriteValue(ConvertColor(request.ForegroundColor));
             }
+
             if (request.BackgroundColor != null)
             {
                 writer.WritePropertyName("backgroundColor");
-                writer.WriteValue(request.BackgroundColor);
+                writer.WriteValue(ConvertColor(request.BackgroundColor));
+            }
+
+            if (request.LabelColor != null)
+            {
+                writer.WritePropertyName("labelColor");
+                writer.WriteValue(ConvertColor(request.LabelColor));
+            }
+
+            if (request.SuppressStripShine)
+            {
+                writer.WritePropertyName("suppressStripShine");
+                writer.WriteValue(true);
             }
         }
 
@@ -344,6 +399,19 @@ namespace Passbook.Generator
             }
 
             writer.WriteEndArray();
+        }
+
+        private string ConvertColor(string colour)
+        {
+            if (colour != null && colour.Length > 0 && colour.Substring(0, 1) == "#")
+            {
+                Color c = ColorTranslator.FromHtml(colour);
+                return string.Format("rgb({0},{1},{2})", c.R, c.G, c.B);
+            }
+            else
+            {
+                return colour;
+            }
         }
 
         #endregion

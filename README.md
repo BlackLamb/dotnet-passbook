@@ -35,22 +35,35 @@ Since each pass has a set of mandatory data, fill that in first.
     request.Description = "My first pass";
     request.OrganizationName = "Tomas McGuinness";
     request.LogoText = "My Pass";
+
+Colours can be specified in HTML format or in RGB format.
+
     request.BackgroundColor = "#FFFFFF";
+	request.LabelColor = "#000000";
     request.ForegroundColor = "#000000";
 
-Choose the location of your Passbook certificate. This is used to sign the manifest.
+	request.BackgroundColor = "rgb(255,255,255)";
+	request.LabelColor = "rgb(0,0,0)";
+    request.ForegroundColor = "rgb(0,0,0)";
+
+To select the certificate there are two options. Firstly, you can use the Windows Certificate store to hold the certificates. You choose the location of your Passbook certificate by specifying the thumbprint of the certificates. The Apple WWDRC is also loaded  in this way, so you don't need to specify anything.
 
  	request.CertThumbprint = "22C5FADDFBF935E26E2DDB8656010C7D4103E02E";
     request.CertLocation = System.Security.Cryptography.X509Certificates.StoreLocation.CurrentUser;
 
-Next, define the images you with to use. You must always include both standard and retina sized images.
+An alternative way to pass the certificates into the PassGenerator is to load them as byte[] and add them to the request.
 
-    // images folder
-    request.ImagesPath = Server.MapPath(@"~/Icons/Starbucks/");
+	request.Certificate = certData; // Loaded from a database or other mechanism for example.
+    request.CertificatePassword = "abc123"; // The password for the certificate's private key.
+    string appleCertPath = (HttpContext.Current.Server.MapPath("~/Certificates
+    AppleWWDRCA.cer");
+	request.AppleWWDRCACertificate = File.ReadAllBytes(appleCertPath);
+
+Next, define the images you with to use. You must always include both standard and retina sized images. Images are supplied as byte[].
 
     // override icon and icon retina
-    request.ImagesList.Add(PassbookImage.Icon, Server.MapPath("~/Icons/icon.png"));
-    request.ImagesList.Add(PassbookImage.IconRetina, Server.MapPath("~/Icons/icon@2x.png"));
+    request.Images.Add(PassbookImage.Icon, System.IO.File.ReadAllBytes(Server.MapPath("~/Icons/icon.png")));
+    request.Images.Add(PassbookImage.IconRetina, System.IO.File.ReadAllBytes(Server.MapPath("~/Icons/icon@2x.png")));
 
 You can now provide more pass specific information. The Style must be set and then all information is then added to fields to the required sections. For a baording pass, the fields are add to three sections;  primary, secondary and auxiliary.
 
@@ -72,15 +85,11 @@ You can add a BarCode.
 
 Finally, generate the pass by passing the request into the instance of the Generator. This will create the signed manifest and package all the the image files into zip.
 
-    Pass generatedPass = generator.Generate(request);
+    byte[] generatedPass = generator.Generate(request);
 
-Use GetPackage to get the zip file. This will return a byte[] representing all the data in the signed zipfile. 
+If you are using ASP.NET MVC for example, you can return this byte[] as a Passbook package
 
-	generatedPass.GetPackage()
-
-To clean up any temporary files, you can just delete the directory when done.
-
-    System.IO.Directory.Delete(generatedPass.PackageDirectory, true);
+	return new FileContentResult(generatedPass, "application/vnd.apple.pkpass");
  
 ##Updating passes
 
@@ -117,11 +126,17 @@ The project also includes some dummy requests, so illustrate how you can create 
 
 These passes are functional and can be saved Passbook.
 
+##NuGet
+
+Dotnet-passbook is also available to  download from NuGet.
+
+	Install-Package dotnet-passbook
+
 ##Contribute
 All pull requests are welcomed! If you come across an issue you cannot fix, please raise an issue or drop me an email at tomas@tomasmcguinness.com or follow me on twitter @tomasmcguinness
 
 ##PassVerse	
-PassVerse is a service that I am building that will offer a simple way to design and generate Passbook passes. It will allow you to track usage and offer an API to push updates to your passes. This will provide you with an alternative to implementing this technology yourself. You can register your interest at [www.passverse.com](http://www.passverse.com)
+If you don't want to build it yourself, PassVerse allows you to design and generate and update Passbook passes. It features a usage dashboard and a powerful rest API for generating and update passes. To get access to the private beta, sign up at [www.passverse.com](http://www.passverse.com).
 
 ##License
 
